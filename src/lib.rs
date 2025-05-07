@@ -14,8 +14,7 @@ use crate::cuda::CudaDevice;use crate::cuda::CudaStorageSliceView;
 pub mod op;
 pub mod shape;
 use std::marker::PhantomData;
-use std::ops;
-use std::path::PathBuf;
+
 mod simd;
 pub mod similarity;
 use crate::op::GLOBAL_CPU_DEVICE_CACHE;

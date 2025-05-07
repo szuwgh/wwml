@@ -1,9 +1,9 @@
-# galois
+# wwml
 Tensor library for AI, suitable for AI inference engine development
 
 example
 ```rust
-use galois::{arr, cube, mat, Shape, Tensor};
+use wwml::{arr, cube, mat, Shape, Tensor};
 fn main() {
     let m1 = mat(&[
         [0.0, 0.0, 0.0],
