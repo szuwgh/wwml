@@ -1,14 +1,8 @@
-use crate::cuda::CudaAdd;
-use crate::cuda::CudaCpy;
-use crate::cuda::CudaMap;
-use crate::cuda::CudaMap2;
-use crate::cuda::CudaMatMul;
-use crate::cuda::CudaMul;
-use crate::cuda::CudaRmsNorm;
-use crate::cuda::CudaRope;
-use crate::cuda::CudaScale;
-use crate::cuda::CudaSilu;
-use crate::cuda::CudaSoftMax;
+#[cfg(feature = "cuda")]
+use crate::cuda::{
+    CudaAdd, CudaCpy, CudaMap, CudaMap2, CudaMatMul, CudaMul, CudaRmsNorm, CudaRope, CudaScale,
+    CudaSilu, CudaSoftMax,
+};
 use crate::error::GResult;
 use crate::ggml_quants::QuantType;
 use crate::CpuStorageView;
@@ -3080,6 +3074,7 @@ pub fn galois_add<X: TensorProto, Y: TensorProto, R: TensorProto>(
         (StorageView::Cpu(s0), StorageView::Cpu(s1), StorageView::Cpu(mut d)) => {
             Add.map(s0, a.dim(), s1, b.dim(), &mut d, dst_dim)?;
         }
+        #[cfg(feature = "cuda")]
         (StorageView::Gpu(s0), StorageView::Gpu(s1), StorageView::Gpu(mut d)) => {
             CudaAdd.map(s0, a.dim(), s1, b.dim(), &mut d, dst_dim)?;
         }
@@ -3100,6 +3095,7 @@ pub fn galois_matmul<X: TensorProto, Y: TensorProto, Z: TensorProto>(
         (StorageView::Cpu(a1), StorageView::Cpu(b1), StorageView::Cpu(mut d)) => {
             MatMul.map(a1, a.dim(), b1, &mut b.dim(), &mut d, dst_dim)?;
         }
+        #[cfg(feature = "cuda")]
         (StorageView::Gpu(s0), StorageView::Gpu(s1), StorageView::Gpu(mut d)) => {
             CudaMatMul.map(s0, a.dim(), s1, b.dim(), &mut d, dst_dim)?;
         }
@@ -3116,6 +3112,7 @@ pub fn galois_mul<X: TensorProto, Y: TensorProto>(a: &X, b: &Y, dst: &mut X) -> 
         (StorageView::Cpu(a1), StorageView::Cpu(b1), StorageView::Cpu(mut d)) => {
             Mul.map(a1, a.dim(), b1, b.dim(), &mut d, dst_dim)?;
         }
+        #[cfg(feature = "cuda")]
         (StorageView::Gpu(s0), StorageView::Gpu(s1), StorageView::Gpu(mut d)) => {
             CudaMul.map(s0, a.dim(), s1, b.dim(), &mut d, dst_dim)?;
         }
@@ -3158,6 +3155,7 @@ pub fn galois_rms_norm<T: TensorProto>(src: &T, dst: &mut T, eps: f32) -> GResul
         (StorageView::Cpu(s), StorageView::Cpu(mut d)) => {
             RmsNorm { eps }.map(s, src.dim(), &mut d, dst_dim)?;
         }
+        #[cfg(feature = "cuda")]
         (StorageView::Gpu(s), StorageView::Gpu(mut d)) => {
             CudaRmsNorm { eps }.map(s, src.dim(), &mut d, dst_dim)?;
         }
@@ -3174,6 +3172,7 @@ pub fn galois_cpy<X: TensorProto, Y: TensorProto>(src: &X, dst: &mut Y) -> GResu
         (StorageView::Cpu(s), StorageView::Cpu(mut d)) => {
             Cpy.map(s, src.dim(), &mut d, dst_dim)?;
         }
+        #[cfg(feature = "cuda")]
         (StorageView::Gpu(s), StorageView::Gpu(mut d)) => {
             CudaCpy.map(s, src.dim(), &mut d, dst_dim)?;
         }
@@ -3190,6 +3189,7 @@ pub fn galois_cont<T: TensorProto>(src: &T, dst: &mut T) -> GResult<()> {
         (StorageView::Cpu(s), StorageView::Cpu(mut d)) => {
             Cpy.map(s, src.dim(), &mut d, dst_dim)?;
         }
+        #[cfg(feature = "cuda")]
         (StorageView::Gpu(s), StorageView::Gpu(mut d)) => {
             CudaCpy.map(s, src.dim(), &mut d, dst_dim)?;
         }
@@ -3219,6 +3219,7 @@ pub fn galois_soft_max<T: TensorProto>(src: &T, dst: &mut T) -> GResult<()> {
         (StorageView::Cpu(s), StorageView::Cpu(mut d)) => {
             SoftMax.map(s, src.dim(), &mut d, dst_dim)?;
         }
+        #[cfg(feature = "cuda")]
         (StorageView::Gpu(s), StorageView::Gpu(mut d)) => {
             CudaSoftMax.map(s, src.dim(), &mut d, dst_dim)?;
         }
@@ -3240,6 +3241,7 @@ pub fn galois_unary<T: TensorProto>(src: &T, dst: &mut T, op: UnaryOp) -> GResul
                 todo!()
             }
         },
+        #[cfg(feature = "cuda")]
         (StorageView::Gpu(s), StorageView::Gpu(mut d)) => match op {
             UnaryOp::Silu => {
                 CudaSilu.map(s, src.dim(), &mut d, dst_dim)?;
@@ -3265,9 +3267,11 @@ pub fn galois_scale<X: TensorProto, Y: TensorProto>(
         (StorageView::Cpu(s0), StorageView::Cpu(s1), StorageView::Cpu(mut d)) => {
             Scale.map(s0, src0.dim(), s1, src1.dim(), &mut d, dst_dim)?;
         }
+        #[cfg(feature = "cuda")]
         (StorageView::Gpu(s0), StorageView::Gpu(s1), StorageView::Gpu(mut d)) => {
             CudaScale.map(s0, src0.dim(), s1, src1.dim(), &mut d, dst_dim)?;
         }
+        #[cfg(feature = "cuda")]
         (StorageView::Gpu(s0), StorageView::Cpu(s1), StorageView::Gpu(mut d)) => {
             CudaScale.map2(s0, src0.dim(), s1, src1.dim(), &mut d, dst_dim)?;
         }
@@ -3321,6 +3325,7 @@ pub fn galois_rope_custom<X: TensorProto, Y: TensorProto, R: TensorProto>(
             }
             .map(s0, src0.dim(), s1, src1.dim(), &mut d, dst_dim)?;
         }
+        #[cfg(feature = "cuda")]
         (StorageView::Gpu(s0), StorageView::Gpu(s1), StorageView::Gpu(mut d)) => {
             CudaRope {
                 n_dims: op.n_dims,

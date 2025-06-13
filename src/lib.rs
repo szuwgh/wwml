@@ -4,13 +4,20 @@
 #![feature(slice_as_chunks)]
 
 use crate::ggml_quants::QK_K;
+#[cfg(feature = "cuda")]
 pub mod cuda;
+#[cfg(feature = "cuda")]
+pub mod kernels;
+#[cfg(feature = "cuda")]
+pub use cuda::{
+    CudaDevice, CudaStorage, CudaStorageView, CudaStorageSlice, CudaStorageSliceView,
+    init_cuda_function, // 如果你还需要导出函数
+};
 #[macro_use]
 pub mod macros; // 导入宏模块
 pub mod error;
 pub mod ggml_quants;use crate::ggml_quants::BlockQ4K;
-pub mod kernels;
-use crate::cuda::CudaDevice;use crate::cuda::CudaStorageSliceView;
+
 pub mod op;
 pub mod shape;
 use std::marker::PhantomData;
@@ -26,10 +33,9 @@ use rayon::prelude::*;
 use std::simd::f32x32;
 use std::simd::num::SimdFloat;
 mod zip;
-use crate::cuda::CudaStorageView;
+
 extern crate alloc;
-use crate::cuda::CudaStorage;
-use crate::cuda::CudaStorageSlice;
+
 use crate::error::{GError, GResult};
 use crate::ggml_quants::BlockQ4_0;
 use crate::ggml_quants::QK8_0;
@@ -265,6 +271,7 @@ pub trait StorageProto {
 #[derive(Clone)]
 pub enum Device {
     Cpu,
+    #[cfg(feature = "cuda")]
     Gpu(CudaDevice),
 }
 
@@ -1595,6 +1602,7 @@ impl<'a> Iterator for TensorIter<'a> {
                     todo!()
                 }
             },
+            #[cfg(feature = "cuda")]
             Storage::Gpu(_) => {
                 todo!()
             }
@@ -1781,6 +1789,7 @@ impl<'a> StorageProto for StorageView<'a> {
     fn as_bytes_mut(&mut self) -> &mut [u8] {
         return match self {
             StorageView::Cpu(v) => v.as_bytes_mut(),
+            #[cfg(feature = "cuda")]
             StorageView::Gpu(v) => {
                 todo!()
             }
@@ -1790,6 +1799,7 @@ impl<'a> StorageProto for StorageView<'a> {
     fn view(&self) -> StorageView<'a> {
         return match self {
             StorageView::Cpu(v) => StorageView::Cpu(v.clone()),
+            #[cfg(feature = "cuda")]
             StorageView::Gpu(g) => {
                 StorageView::Gpu(g.offset(0))
             
@@ -1800,6 +1810,7 @@ impl<'a> StorageProto for StorageView<'a> {
     fn as_bytes(&self) -> &[u8] {
         return match self {
             StorageView::Cpu(v) => v.as_bytes(),
+            #[cfg(feature = "cuda")]
             StorageView::Gpu(_) => {
                 todo!()
             }
@@ -1809,6 +1820,7 @@ impl<'a> StorageProto for StorageView<'a> {
     fn offset(&self, i: usize) -> StorageView<'a> {
         return match self {
             StorageView::Cpu(v) => StorageView::Cpu(v.offset(i)),
+            #[cfg(feature = "cuda")]
             StorageView::Gpu(_) => {
                 todo!()
             }
@@ -1819,6 +1831,7 @@ impl<'a> StorageProto for StorageView<'a> {
 #[derive(Clone)]
 pub enum StorageView<'a> {
     Cpu(CpuStorageView<'a>),
+    #[cfg(feature = "cuda")]
     Gpu(CudaStorageView<'a>), //todo!
 }
 
@@ -1869,6 +1882,7 @@ pub enum StorageView<'a> {
 #[derive(Clone)]
 pub enum Storage {
     Cpu(CpuStorageSlice),
+    #[cfg(feature = "cuda")]
     Gpu(CudaStorage),
 }
 
@@ -1876,6 +1890,7 @@ impl StorageProto for Storage {
     fn as_bytes_mut(&mut self) -> &mut [u8] {
         return match self {
             Storage::Cpu(v) => v.as_bytes_mut(),
+            #[cfg(feature = "cuda")]
             Storage::Gpu(_) => {
                 todo!()
             }
@@ -1885,6 +1900,7 @@ impl StorageProto for Storage {
     fn view<'a>(&'a self) -> StorageView<'a> {
         return match self {
             Storage::Cpu(v) => StorageView::Cpu(v.view()),
+            #[cfg(feature = "cuda")]
             Storage::Gpu(v) => StorageView::Gpu(v.view()),
         };
     }
@@ -1892,6 +1908,7 @@ impl StorageProto for Storage {
     fn as_bytes(&self) -> &[u8] {
         return match self {
             Storage::Cpu(v) => v.as_bytes(),
+            #[cfg(feature = "cuda")]
             Storage::Gpu(_) => {
                 todo!()
             }
@@ -1901,6 +1918,7 @@ impl StorageProto for Storage {
     fn offset<'a>(&'a self, i: usize) -> StorageView<'a> {
         return match self {
             Storage::Cpu(v) => StorageView::Cpu(v.offset(i)),
+            #[cfg(feature = "cuda")]
             Storage::Gpu(g) => {
                 StorageView::Gpu(g.offset(i))
             }
@@ -2182,7 +2200,8 @@ impl<'a> TensorView<'a> {
         match dev {
             Device::Cpu => {
                 todo!()
-            }
+            } 
+            #[cfg(feature = "cuda")]
             Device::Gpu(g) => {
                 let view = self.data.view();
                 match view {
@@ -2209,6 +2228,7 @@ impl<'a> TensorView<'a> {
     pub fn to_cpu_tensor(self) -> GResult<Tensor> {
         match &self.data {
             StorageView::Cpu(_) => todo!(),
+            #[cfg(feature = "cuda")]
             StorageView::Gpu(g) => match g.slice() {
                 CudaStorageSliceView::Q4_0(v) => {
                     let elem_count = self.dim.elem_count();
@@ -2278,6 +2298,7 @@ impl Tensor {
     pub fn to_cpu_tensor(&self) -> GResult<Tensor> {
         match &self.data {
             Storage::Cpu(_) => todo!(),
+            #[cfg(feature = "cuda")]
             Storage::Gpu(g) => match g.slice() {
                 CudaStorageSlice::Q4_0(v) => {
                     let elem_count = self.dim.elem_count();
@@ -2415,6 +2436,7 @@ impl Tensor {
                 },
                 dev: dev.clone(),
             }),
+            #[cfg(feature = "cuda")]
             Device::Gpu(g) => {
                 let cuda_stor = g.from_cpu_storage(data)?;
                 Ok(Self {

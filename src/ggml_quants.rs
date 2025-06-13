@@ -3,8 +3,8 @@ use crate::{error::GResult, GGmlType};
 use byteorder::{ByteOrder, LittleEndian};
 #[cfg(target_arch = "x86_64")]
 use core::arch::x86_64::*;
-use cudarc::driver::DeviceRepr;
-use cudarc::driver::ValidAsZeroBits;
+#[cfg(feature = "cuda")]
+use cudarc::driver::{DeviceRepr, ValidAsZeroBits};
 use half::f16;
 use std::ops::Sub;
 
@@ -133,8 +133,9 @@ impl QuantType for f16 {
         res
     }
 }
-
+#[cfg(feature = "cuda")]
 unsafe impl DeviceRepr for BlockQ4_0 {}
+#[cfg(feature = "cuda")]
 unsafe impl ValidAsZeroBits for BlockQ4_0 {}
 
 #[derive(Default, Debug, Clone, PartialEq, Copy)]
@@ -768,7 +769,9 @@ impl QuantType for BlockQ8_0 {
     }
 }
 
+#[cfg(feature = "cuda")]
 unsafe impl ValidAsZeroBits for BlockQ8_1 {}
+#[cfg(feature = "cuda")]
 unsafe impl DeviceRepr for BlockQ8_1 {}
 
 #[derive(Debug, Clone, PartialEq)]

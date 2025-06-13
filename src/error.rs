@@ -1,6 +1,8 @@
 use crate::Dim;
 use crate::Shape;
+#[cfg(feature = "cuda")]
 use cudarc::cublas::result::CublasError;
+#[cfg(feature = "cuda")]
 use cudarc::driver::DriverError;
 use std::fmt;
 use std::io;
@@ -67,18 +69,20 @@ pub enum GError {
         stride: usize,
         msg: &'static str,
     },
+    #[cfg(feature = "cuda")]
     #[error("cuda error:{0:?}")]
     CudaDeviceError(DriverError),
+    #[cfg(feature = "cuda")]
     #[error("cublas error:{0:?}")]
     CublasError(CublasError),
 }
-
+#[cfg(feature = "cuda")]
 impl From<DriverError> for GError {
     fn from(e: DriverError) -> Self {
         GError::CudaDeviceError(e)
     }
 }
-
+#[cfg(feature = "cuda")]
 impl From<CublasError> for GError {
     fn from(e: CublasError) -> Self {
         GError::CublasError(e)
