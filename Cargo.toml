@@ -4,6 +4,7 @@ version = "0.1.1"
 edition = "2021"
 description = "Tensor library for AI"
 license = "MIT"
+repository = "https://github.com/szuwgh/wwml"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
