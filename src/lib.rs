@@ -1,5 +1,5 @@
-#![feature(concat_idents)]
-#![feature(non_null_convenience)]
+#![feature(macro_metavar_expr_concat)]
+#![feature(non_null_convenience)] 
 #![feature(portable_simd)]
 #![feature(slice_as_chunks)]
 
@@ -20,7 +20,7 @@ pub mod ggml_quants;use crate::ggml_quants::BlockQ4K;
 
 pub mod op;
 pub mod shape;
-use std::marker::PhantomData;
+use std::marker::PhantomData;  
 
 mod simd;
 pub mod similarity;
