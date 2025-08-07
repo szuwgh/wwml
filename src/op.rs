@@ -3568,7 +3568,6 @@ mod tests {
         //     &d.dim,
         // );
         galois_matmul(&a, &b, &mut d).unwrap();
-        println!("{:?}", d);
         println!("{:?}", unsafe { d.as_slice::<f32>() });
     }
 
@@ -3636,11 +3635,6 @@ mod tests {
             &Device::Cpu,
         )
         .unwrap();
-
-        println!("m1:{:?}", m1);
-        println!("m2:{:?}", m2);
-
-        //  let m2 = mat(&[[1.0f32, 2.0, 4.0], [3.0f32, 5.0, 6.0]]);
 
         let v = vec![0.0f32; 15];
         let mut d = Tensor::from_vec(v, 2, Shape::from_array([2, 2]), &Device::Cpu).unwrap();

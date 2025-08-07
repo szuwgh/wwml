@@ -18,6 +18,8 @@ lazy_static = "1.5.0"
 cudarc = { version = "0.16", default-features = false, features = ["runtime", "driver", "cuda-12050", "cublas", "f16"],optional = true }
 galois-kernels = {path = "./galois-kernels", version = "0.1.0", optional = true}
 byteorder = "1.5.0"
+serde_json = "1.0.122"
+serde = {version= "1.0.219", features = ["derive"] }
 
 [build-dependencies]  
 bindgen_cuda = { version = "0.1.1", optional = true }

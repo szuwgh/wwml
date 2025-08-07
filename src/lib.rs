@@ -17,7 +17,7 @@ pub use cuda::{
 pub mod macros; // 导入宏模块
 pub mod error;
 pub mod ggml_quants;use crate::ggml_quants::BlockQ4K;
-
+mod serialize;
 pub mod op;
 pub mod shape;
 use std::marker::PhantomData;  
@@ -50,10 +50,8 @@ use ggml_quants::{BlockQ6K, BlockQ8_0, QK4_0};
 use half::f16;
 use num_traits::{FromPrimitive, ToPrimitive};
 use shape::ShapeIter;
-use std::fmt;
+use std::{ fmt};
 use std::mem::forget;
-
-
 
 pub type F16 = half::f16;
 
@@ -1253,7 +1251,7 @@ impl<'a, P: TensorType> RawSliceView<'a, P> {
     }
 }
 
-// #[derive(Clone)]
+
 pub(crate) struct RawSlice<P: TensorType> {
     ptr: NonNull<P>,
     len: usize,
@@ -1261,6 +1259,18 @@ pub(crate) struct RawSlice<P: TensorType> {
 }
 
 impl<P: TensorType> RawSlice<P> {
+
+    pub(crate) fn from_vec(raw: Vec<P>) -> Self {
+        let len: usize = raw.len();
+        let data = RawSlice::from_raw_parts(
+            raw.as_ptr() as *mut P,
+            len,
+            raw.capacity(),
+        );
+        forget(raw);
+        data
+    }
+
     pub(crate) fn from_raw(raw: Vec<u8>) -> Self {
         let nbytes = raw.len();
         assert_eq!(
@@ -1293,47 +1303,6 @@ impl<P: TensorType> RawSlice<P> {
         }
     }
 
-    // pub(crate) fn as_ptr(&self) -> NonNull<P> {
-    //     return match self {
-    //         RawSlice::Own(v) => v.ptr,
-    //         RawSlice::Ref(v) => v.ptr,
-    //     };
-    // }
-
-    // pub(crate) fn len(&self) -> usize {
-    //     return match self {
-    //         RawSlice::Own(v) => v.len,
-    //         RawSlice::Ref(v) => v.len,
-    //     };
-    // }
-
-    // fn as_bytes_mut(&mut self) -> &mut [u8] {
-    //     return match self {
-    //         RawSlice::Own(v) => v.as_bytes_mut(),
-    //         RawSlice::Ref(v) => v.as_bytes_mut(),
-    //     };
-    // }
-
-    // fn as_bytes(&self) -> &[u8] {
-    //     return match self {
-    //         RawSlice::Own(v) => v.as_bytes(),
-    //         RawSlice::Ref(v) => v.as_bytes(),
-    //     };
-    // }
-
-    // fn as_slice(&self) -> &[P] {
-    //     return match self {
-    //         RawSlice::Own(v) => v.as_slice(),
-    //         RawSlice::Ref(v) => v.as_slice(),
-    //     };
-    // }
-
-    // fn as_slice_mut(&mut self) -> &mut [P] {
-    //     return match self {
-    //         RawSlice::Own(v) => v.as_slice_mut(),
-    //         RawSlice::Ref(v) => v.as_slice_mut(),
-    //     };
-    // }
 }
 
 #[derive(Clone)]
@@ -1373,9 +1342,6 @@ impl<P: TensorType> RawRef<P> {
         self.ptr
     }
 
-    // fn to_RawSlice(self) -> RawSlice<P> {
-    //     RawSlice::Ref(self)
-    // }
 
     fn from_raw_parts(ptr: *mut P, length: usize) -> Self {
         unsafe {
@@ -1386,16 +1352,9 @@ impl<P: TensorType> RawRef<P> {
         }
     }
 
-    // fn nbytes(&self) -> usize {
-    //     self.len * GS_TYPE_SIZE[P::DTYPE as usize] / GS_BLCK_SIZE[P::DTYPE as usize]
-    // }
+
 }
 
-// struct RawPtr<P: TensorType> {
-//     ptr: NonNull<P>,
-//     len: usize,
-//     cap: usize,
-// }
 
 impl<A: TensorType> NdArray for RawSlice<A> {
     type device = CpuStorageSlice;
@@ -1559,9 +1518,6 @@ impl<P: TensorType> RawSlice<P> {
         }
     }
 
-    // fn to_RawSlice(self) -> RawSlice<P> {
-    //     RawSlice::Own(self)
-    // }
 }
 
 #[derive(Debug)]
@@ -1689,8 +1645,8 @@ impl<'a> CpuStorageView<'a> {
 
 #[derive(Clone)]
 pub enum CpuStorageSlice {
-    Q4_0(RawSlice<BlockQ4_0>),
     Q4K(RawSlice<BlockQ4K>),
+    Q4_0(RawSlice<BlockQ4_0>),
     Q6K(RawSlice<BlockQ6K>),
     F16(RawSlice<f16>),
     F32(RawSlice<f32>),
@@ -1764,9 +1720,6 @@ impl CpuStorageSlice {
             (CpuStorageSlice::F32(l), CpuStorageSlice::F32(r)) => {
                 copy_strided_src(l.as_slice(), r.as_slice_mut(), dst_offset, src_l);
             }
-            // (CpuStorageSlice::F64(l), CpuStorageSlice::F64(r)) => {
-            //     copy_strided_src(l.as_slice(), r.as_slice_mut(), dst_offset, src_l);
-            // }
             _ => {
                 todo!()
             }
@@ -1774,10 +1727,6 @@ impl CpuStorageSlice {
     }
 }
 
-// enum StorageViewMut<'a> {
-//     Cpu(CpuStorageViewMut<'a>),
-//     Gpu(), //todo!
-// }
 
 impl<'a> AsRef<StorageView<'a>> for StorageView<'a> {
     fn as_ref(&self) -> &StorageView<'a> {
@@ -1835,50 +1784,6 @@ pub enum StorageView<'a> {
     Gpu(CudaStorageView<'a>), //todo!
 }
 
-// impl<'a> StorageView<'a> {
-//     pub(crate) fn as_bytes_mut(&mut self) -> &mut [u8] {
-//         return match self {
-//             StorageView::Cpu(v) => v.as_bytes_mut(),
-//             StorageView::Gpu(v) => {
-//                 todo!()
-//             }
-//         };
-//     }
-
-//     pub(crate) fn view(&self) -> StorageView<'a> {
-//         return match self {
-//             StorageView::Cpu(v) => StorageView::Cpu(v.clone()),
-//             StorageView::Gpu(_) => {
-//                 todo!()
-//             }
-//         };
-//     }
-
-//     pub(crate) fn as_bytes(&self) -> &[u8] {
-//         return match self {
-//             StorageView::Cpu(v) => v.as_bytes(),
-//             StorageView::Gpu(_) => {
-//                 todo!()
-//             }
-//         };
-//     }
-
-//     pub(crate) fn offset(&self, i: usize) -> StorageView<'a> {
-//         return match self {
-//             StorageView::Cpu(v) => StorageView::Cpu(v.offset(i)),
-//             StorageView::Gpu(_) => {
-//                 todo!()
-//             }
-//         };
-//     }
-// }
-
-// impl<'a> AsRef<StorageView<'a>> for Storage {
-//     fn as_ref(&self) -> &StorageView<'a> {
-//         self
-//     }
-// }
-
 #[derive(Clone)]
 pub enum Storage {
     Cpu(CpuStorageSlice),
@@ -1925,57 +1830,6 @@ impl StorageProto for Storage {
         };
     }
 
-    // pub(crate) fn len(&self) -> usize {
-    //     return match self {
-    //         Storage::Cpu(v) => v.len(),
-    //         Storage::Gpu() => {
-    //             todo!()
-    //         }
-    //     };
-    // }
-
-    // pub(crate) fn copy_strided_src(&self, rhs: &mut Self, dst_offset: usize, src_l: &Dim) {
-    //     match (self, rhs) {
-    //         (Storage::Cpu(lhs), Storage::Cpu(rhs)) => lhs.copy_strided_src(rhs, dst_offset, src_l),
-    //         (Storage::Gpu(), Storage::Gpu()) => {
-    //             todo!()
-    //         }
-    //         _ => {
-    //             todo!()
-    //         }
-    //     }
-    // }
-
-    // pub(crate) fn sqrt(&self) -> Self {
-    //     match self {
-    //         Storage::Cpu(lhs) => {
-    //             todo!()
-    //         }
-    //         Storage::Gpu() => {
-    //             todo!()
-    //         }
-    //         _ => {
-    //             todo!()
-    //         }
-    //     }
-    // }
-    // fn as_slice(&self) -> &[A] {
-    //     return match self {
-    //         Storage::Cpu(v) => v.as_slice(),
-    //         Storage::Gpu() => {
-    //             todo!()
-    //         }
-    //     };
-    // }
-
-    // fn as_slice_mut(&mut self) -> &mut [A] {
-    //     return match self {
-    //         Storage::Cpu(v) => v.as_slice_mut(),
-    //         Storage::Gpu() => {
-    //             todo!()
-    //         }
-    //     };a
-    // }
 }
 
 impl<'a> TensorProto for TensorView<'a> {
@@ -2280,13 +2134,15 @@ impl<'a> TensorView<'a> {
 
 unsafe impl Send for Tensor {}
 
-#[derive(Clone)]
+#[derive(Clone)]    
 pub struct Tensor {
     dtype: GGmlType,
     data: Storage,
     dim: Dim,
     dev: Device,
 }
+
+
 
 impl AsRef<Tensor> for Tensor {
     fn as_ref(&self) -> &Tensor {
@@ -2453,27 +2309,11 @@ impl Tensor {
         }
     }
 
-    // fn device(&self) -> &Storage {
-    //     &self.data
-    // }
-
-    // fn device_dim(&mut self) -> (&mut Storage, &Dim) {
-    //     (&mut self.data, &self.dim)
-    // }
-
-    // fn device_mut(&mut self) -> &mut Storage {
-    //     &mut self.data
-    // }
 
     fn nrows(&self) -> usize {
         let (_, d1, d2, d3) = self.dim4();
         d1 * d2 * d3
     }
-
-    // pub fn set_value<A: TensorType>(&mut self, value: A) {
-    //     let row = unsafe { self.as_slice_mut::<A>() };
-    //     row.iter_mut().for_each(|e| *e = value);
-    // }
 
     pub fn from_elem<A: TensorType>(a: A, n_dims: usize, s: Shape, dev: &Device) -> GResult<Self>
     where
@@ -2547,14 +2387,6 @@ impl Tensor {
         self.elem_count() * GS_TYPE_SIZE[self.dtype as usize] / GS_BLCK_SIZE[self.dtype as usize]
     }
 
-    // pub fn as_bytes_mut(&mut self) -> &mut [u8] {
-    //     self.device_mut().as_bytes_mut()
-    // }
-
-    // pub fn as_bytes(&self) -> &[u8] {
-    //     self.storage().as_bytes()
-    // }
-
     pub fn to_vec<T>(&self) -> Vec<T> {
         let bytes = self.as_bytes();
         assert!(bytes.len() as usize % GS_TYPE_SIZE[self.dtype as usize] == 0);
@@ -2593,115 +2425,6 @@ impl Tensor {
         Ok(s[dim])
     }
 
-    // pub fn chunk(&self, chunks: usize, dim: usize) -> GResult<Vec<Self>> {
-    //     let size = self.dim().shape()[dim];
-    //     if size < chunks {
-    //         (0..size).map(|i| self.narrow(dim, i, 1)).collect()
-    //     } else {
-    //         let chunk_size = size / chunks;
-    //         let cnt_additional = size % chunks;
-    //         let mut tensors = vec![];
-    //         let mut sum_chunk_size = 0;
-    //         for i in 0..chunks {
-    //             let chunk_size = if i < cnt_additional {
-    //                 chunk_size + 1
-    //             } else {
-    //                 chunk_size
-    //             };
-    //             let tensor = self.narrow(dim, sum_chunk_size, chunk_size)?;
-    //             tensors.push(tensor);
-    //             sum_chunk_size += chunk_size
-    //         }
-    //         Ok(tensors)
-    //     }
-    // }
-
-    // pub fn narrow(&self, dim: usize, start: usize, len: usize) -> GResult<Self> {
-    //     let dims = self.dim().shape();
-    //     let err = |msg| {
-    //         Err::<(), _>(GError::NarrowInvalidArgs {
-    //             shape: self.dim().shape.clone(),
-    //             dim,
-    //             start,
-    //             len,
-    //             msg,
-    //         })
-    //     };
-    //     if start > dims[dim] {
-    //         err("start > dim_len")?
-    //     }
-    //     if start.saturating_add(len) > dims[dim] {
-    //         err("start + len > dim_len")?
-    //     }
-    //     if start == 0 && dims[dim] == len {
-    //         Ok(self.clone())
-    //     } else {
-    //         let new_dim = self.dim.narrow(dim, start, len)?;
-    //         let offset = self.dim().stride()[dim] * start;
-    //         Ok(Tensor {
-    //             dtype: self.dtype(),
-    //             data: self.data.offset(offset),
-    //             dim: new_dim,
-    //         })
-    //     }
-    // }
-
-    // pub fn permute(
-    //     &mut self,
-    //     axis0: usize,
-    //     axis1: usize,
-    //     axis2: usize,
-    //     axis3: usize,
-    // ) -> GResult<Tensor> {
-    //     assert!(axis0 < MAX_DIM);
-    //     assert!(axis1 < MAX_DIM);
-    //     assert!(axis2 < MAX_DIM);
-    //     assert!(axis3 < MAX_DIM);
-
-    //     assert!(axis0 != axis1);
-    //     assert!(axis0 != axis2);
-    //     assert!(axis0 != axis3);
-    //     assert!(axis1 != axis2);
-    //     assert!(axis1 != axis3);
-    //     assert!(axis2 != axis3);
-
-    //     let shape = self.shape_layout();
-    //     let stride = self.stride_layout();
-
-    //     let mut ne = Layout::default();
-    //     let mut nb = Layout::default();
-
-    //     ne[axis0] = shape[0];
-    //     ne[axis1] = shape[1];
-    //     ne[axis2] = shape[2];
-    //     ne[axis3] = shape[3];
-
-    //     nb[axis0] = stride[0];
-    //     nb[axis1] = stride[1];
-    //     nb[axis2] = stride[2];
-    //     nb[axis3] = stride[3];
-
-    //     let mut result = self.view();
-
-    //     {
-    //         let shape_view = result.shape_layout_mut();
-    //         shape_view[0] = ne[0];
-    //         shape_view[1] = ne[1];
-    //         shape_view[2] = ne[2];
-    //         shape_view[3] = ne[3];
-    //     }
-
-    //     {
-    //         let stride_view = result.stride_layout_mut();
-    //         stride_view[0] = nb[0];
-    //         stride_view[1] = nb[1];
-    //         stride_view[2] = nb[2];
-    //         stride_view[3] = nb[3];
-    //     }
-
-    //     Ok(result)
-    // }
-
     fn into_transpose(mut self, d1: usize, d2: usize) -> GResult<Tensor> {
         if d1 > self.size() {
             return Err(GError::DimOutOfRange {
@@ -2727,120 +2450,6 @@ impl Tensor {
             dev: self.dev,
         })
     }
-
-    // pub fn pad<A: TensorType>(
-    //     &self,
-    //     dim: usize,
-    //     left: usize,
-    //     right: usize,
-    //     elem: A,
-    // ) -> GResult<Tensor> {
-    //     if left == 0 && right == 0 {
-    //         Ok(self.clone())
-    //     } else if left == 0 {
-    //         let mut dims = self.dim().shape().to_vec();
-    //         dims[dim] = right;
-    //         let right = Tensor::from_elem(elem, dims.len(), Shape::from_vec(dims));
-    //         Tensor::cat(&[self, &right], dim)
-    //     } else if right == 0 {
-    //         let mut dims = self.dim().shape().to_vec();
-    //         dims[dim] = left;
-    //         let left = Tensor::from_elem(elem, dims.len(), Shape::from_vec(dims));
-    //         Tensor::cat(&[&left, &self], dim)
-    //     } else {
-    //         let mut dims = self.dim().shape().to_vec();
-    //         dims[dim] = left;
-    //         let left = Tensor::from_elem(elem, dims.len(), Shape::from_slice(dims.as_slice()));
-    //         dims[dim] = right;
-    //         let right = Tensor::from_elem(elem, dims.len(), Shape::from_vec(dims));
-    //         Tensor::cat(&[&left, &self, &right], dim)
-    //     }
-    // }
-
-    // pub fn cat<T: AsRef<Tensor>>(ts: &[T], dim: usize) -> GResult<Tensor> {
-    //     if dim == 0 {
-    //         Self::cat0(ts)
-    //     } else {
-    //         let args: Vec<Tensor> = ts
-    //             .iter()
-    //             .map(|a| a.as_ref().view().into_transpose(0, dim))
-    //             .collect::<GResult<Vec<Tensor>>>()?;
-    //         let cat = Self::cat0(&args)?;
-    //         cat.into_transpose(0, dim)
-    //     }
-    // }
-
-    // fn cat0<T: AsRef<Tensor>>(ts: &[T]) -> GResult<Tensor> {
-    //     let t0 = ts[0].as_ref();
-    //     let mut cat_dims = t0.shape().to_vec();
-    //     cat_dims[0] = 0;
-    //     let mut offsets = vec![0usize];
-    //     for (t_i, arg) in ts.iter().enumerate() {
-    //         let t = arg.as_ref();
-    //         for (dim_idx, (v1, v2)) in t0.shape().iter().zip(t.shape().iter()).enumerate() {
-    //             if dim_idx == 0 {
-    //                 cat_dims[0] += v2;
-    //             }
-    //         }
-    //         let next_offset = offsets.last().unwrap() + t.elem_count();
-    //         offsets.push(next_offset);
-    //     }
-    //     let n_dims = cat_dims.len();
-    //     let shape: Shape = Shape::from_vec(cat_dims);
-    //     let mut new_tensor = Self::zeros(n_dims, shape, t0.dtype());
-    //     for (arg, &offset) in ts.iter().zip(offsets.iter()) {
-    //         let t = arg.as_ref();
-    //         t.storage()
-    //             .copy_strided_src(new_tensor.device_mut(), offset, t.dim());
-    //     }
-    //     Ok(new_tensor)
-    // }
-
-    // fn axis_index(&self, a: Axis, index: usize) -> Tensor {
-    //     let nd_stride = self.dim.nd_stride();
-    //     let axis = a.index();
-    //     let stride = nd_stride[axis];
-    //     let offset = index * stride;
-    //     let axis_dim = self.dim.shape.select_axis(a);
-    //     let s = shape::select_axis(&nd_stride, a);
-    //     // let raw_ref = RawRef {
-    //     //     ptr: unsafe { self.data.as_ptr().offset(offset as isize) },
-    //     //     len: self.data.len() - offset,
-    //     // };
-
-    //     let n_dims = self.dim.n_dims() - 1;
-    //     Tensor {
-    //         dtype: self.dtype(),
-    //         data: self.storage().offset(offset),
-    //         dim: Dim {
-    //             n_dims: n_dims,
-    //             shape: axis_dim,
-    //             stride: s,
-    //         },
-    //     }
-    // }
-
-    // fn axis_index_inner(&self, a: Axis, index: usize) -> Tensor {
-    //     let axis = a.index();
-    //     let stride = self.dim.stride[axis];
-    //     let offset = index * stride;
-    //     let axis_dim = self.dim.shape.select_axis(a);
-    //     let s = shape::select_axis(&self.dim.stride(), a);
-    //     // let raw_ref = RawRef {
-    //     //     ptr: unsafe { self.as_ptr().offset(offset as isize) },
-    //     //     len: self.data.len() - offset,
-    //     // };
-    //     let n_dims = &self.dim.n_dims() - 1;
-    //     Tensor {
-    //         dtype: self.dtype(),
-    //         data: self.storage().offset(offset), //Storage::Cpu(RawSlice::Ref(raw_ref)),
-    //         dim: Dim {
-    //             n_dims: n_dims,
-    //             shape: axis_dim,
-    //             stride: s,
-    //         },
-    //     }
-    // }
 
     pub fn iter(&self) -> TensorIter<'_> {
         TensorIter {
@@ -2965,14 +2574,6 @@ fn copy_strided_src<T: Copy>(src: &[T], dst: &mut [T], dst_offset: usize, src_d:
     }
 }
 
-// impl<T: TensorType> Drop for RawSlice<T> {
-//     fn drop(&mut self) {
-//         match self {
-//             RawSlice::Own(v) => drop(v),
-//             RawSlice::Ref(_) => {}
-//         }
-//     }
-// }
 
 impl<T: TensorType> Drop for RawSlice<T> {
     fn drop(&mut self) {
@@ -2989,46 +2590,17 @@ impl<T: TensorType> Drop for RawSlice<T> {
     }
 }
 
-impl fmt::Debug for Tensor {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // format_tensor(self.view(), 0, f)
-        todo!()
-    }
-}
-
-// fn format_tensor(tensor: Tensor, depth: usize, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//     match tensor.shape() {
-//         &[] => {}
-//         &[len] => {
-//             f.write_str("[")?;
-//             for (i, v) in tensor.iter().enumerate() {
-//                 if i > 0 {
-//                     f.write_str(",")?;
-//                 }
-//                 f.write_str(&format!(" {:?}", v))?;
-//             }
-//             f.write_str("]")?;
-//         }
-//         shape => {
-//             let blank_lines = "\n".repeat(shape.len() - 2);
-//             let indent = " ".repeat(depth + 1);
-//             let separator = format!(",\n{}{}", blank_lines, indent);
-//             f.write_str("[")?;
-//             format_tensor(tensor.axis_index(Axis(0), 0), depth, f)?;
-//             for i in 1..shape[0] {
-//                 f.write_str(&separator)?;
-//                 format_tensor(tensor.axis_index(Axis(0), i), depth, f)?;
-//             }
-//             f.write_str("]")?;
-//         }
+// impl fmt::Debug for Tensor {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         // format_tensor(self.view(), 0, f)
+//         todo!()
 //     }
-//     Ok(())
 // }
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_vec() {
         let mut t = [1, 2, 3];
@@ -3041,7 +2613,6 @@ mod tests {
     fn test_rawten() {
         let mut t = RawSlice::<f32>::with_capacity(10);
         t.fill(3.0, 10);
-        // println!("t:{:?}", t.take_as_vec());
     }
 
     #[test]
@@ -3052,13 +2623,7 @@ mod tests {
         }
         println!("shape:{:?}", m.dim().shape());
         println!("stride:{:?}", m.dim().stride());
-        // //   let v = m.as_slice();
-        // let s = &m.dim.stride;
-        // {
-        //     let t = m.as_ref();
-        // }
-        // println!("s:{:?}", s);
-        println!("v:{:?}", m);
+        //println!("v:{:?}", m);
     }
 
     #[test]
@@ -3072,28 +2637,12 @@ mod tests {
             &Device::Cpu,
         )
         .unwrap();
-        //  let v = m.as_slice();
-        // println!("v:{:?}", m);
         for i in m.iter() {
             println!("v:{:?}", i);
         }
         println!("shape:{:?}", m.dim().shape());
         println!("stride:{:?}", m.dim().stride());
 
-        // for v in m.iter() {
-        //     println!("v:{:?}", v);
-        // }
-
-        // let m1 = m.into_transpose(0, 1).unwrap();
-
-        // for v in m1.iter() {
-        //     println!("v1:{:?}", v);
-        // }
-        // let vv = m1.axis_index(Axis(0), 0);
-        // println!("vv:{:?}", vv);
-        // println!("m1:{:?}", m1);
-        // println!("shape:{:?}", m1.dim().shape());
-        // println!("stride:{:?}", m1.dim().stride());
     }
 
     #[test]
@@ -3102,27 +2651,6 @@ mod tests {
             Tensor::from_elem(1.0f32, 3, Shape::from_array([4usize, 3, 2]), &Device::Cpu).unwrap();
         //let v = a.as_slice();
         let t = a.as_ref();
-        println!("v:{:?}", a);
-    }
-
-    #[test]
-    fn test_reshape() {
-        // let t1 = cube(&[
-        //     [
-        //         [1.0, 2.0, 1.0, 2.0],
-        //         [3.0, 4.0, 3.0, 4.0],
-        //         [3.0, 4.0, 3.0, 4.0],
-        //     ],
-        //     [
-        //         [5.0, 6.0, 5.0, 6.0],
-        //         [7.0, 8.0, 7.0, 8.0],
-        //         [7.0, 8.0, 7.0, 8.0],
-        //     ],
-        // ]);
-        // println!("t1:{:?}", t1.shape());
-
-        // let t2 = t1.reshape(Shape::from_array([2, 3, 2, 2]));
-        // println!("t2:{:?}", t2);
     }
 
     #[test]
@@ -3133,7 +2661,6 @@ mod tests {
         )
         .unwrap();
         let m1 = m.into_transpose(1, 0).unwrap();
-        println!("m1:{:?}", m1);
     }
 
     #[test]
@@ -3142,22 +2669,8 @@ mod tests {
 
         let m2 = Tensor::mat_slice(&[[1.0, 2.0], [3.0, 4.0]], &Device::Cpu);
 
-        // let m3 = Tensor::cat(&[&m1, &m2], 0).unwrap();
-
-        // println!("m3:{:?}", m3);
-        // for m in m3.iter() {
-        //     println!("m:{:?}", m);
-        // }
-
-        // let m4: Tensor = Tensor::cat(&[&m1, &m2], 1).unwrap();
-
-        // println!("m4:{:?}", m4);
-        // println!("shape:{:?}", m4.dim());
-        //    println!("slice:{:?}", m4.as_slice());
-
         let m5 =
             Tensor::mat_slice(&[[1.0, 2.0, 1.0, 2.0], [3.0, 4.0, 3.0, 4.0]], &Device::Cpu).unwrap();
-        println!("m5:{:?}", m5);
         println!("shape:{:?}", m5.dim());
         //   println!("slice:{:?}", m5.as_slice());
 
@@ -3169,43 +2682,10 @@ mod tests {
             &[[[1.0, 2.0], [3.0, 4.0]], [[1.0, 2.0], [3.0, 4.0]]],
             &Device::Cpu,
         );
-        // let m8: Tensor = Tensor::cat(&[&m6, &m7], 2).unwrap();
-        // println!("m8:{:?}", m8);
-        // println!("shape:{:?}", m8.dim());
-        //     println!("slice:{:?}", m8.as_slice());
     }
 
-    // #[test]
-    // fn test_pad() {
-    //     let m1 = Tensor::cube_slice(&[[[1.0, 2.0], [3.0, 4.0]], [[1.0, 2.0], [3.0, 4.0]]]);
-    //     let d = m1.pad(2, 1, 1, 0.0).unwrap().pad(3, 0, 0, 0.0).unwrap();
-    //     for x in d.iter() {
-    //         println!("{:?}", x);
-    //     }
-    //     println!("{:?}", d);
-    // }
 
-    // #[test]
-    // fn test_matmul() {
-    //     let m1 = mat(&[[1.0f32, 2.0], [3.0f32, 4.0], [3.0f32, 4.0]]);
-    //     let m2 = mat(&[[1.0f32, 2.0, 4.0], [3.0f32, 4.0, 5.0]]);
-    //     let mut d = m1.matmul(&m2).unwrap();
-    //     println!("{:?}", d);
-    //     let v = unsafe { d.as_slice_mut::<f32>() };
-    //     println!("{:?}", v);
 
-    //     // let m1 = cube(&[[[1.0, 2.0], [3.0, 4.0]], [[1.0, 2.0], [3.0, 4.0]]]);
-    //     // let m2 = mat(&[[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]);
-    //     // let d = m1.matmul(&m2).unwrap();
-    //     // println!("{:?}", d);
-    // }
-
-    #[test]
-    fn test_cpu_storage() {
-        //  let c = CpuStorage(vec![0u8; 10]);
-        //let a = vec![5u8; 10];
-        //  let d = CpuStorage(a.as_slice());
-    }
 
     #[test]
     fn test_sqrt() {
@@ -3214,41 +2694,8 @@ mod tests {
             &Device::Cpu,
         )
         .unwrap();
-        //let s = m1.sqrt();
-        println!("{:?}", m1);
-        // println!("{:?}", s);
     }
 
-    // #[test]
-    // fn test_narrow() -> GResult<()> {
-    //     let a = Tensor::mat_slice(&[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
-    //     let b = a.narrow(0, 0, 2)?;
-    //     println!("b:{:?}", b);
-
-    //     let c = a.narrow(1, 1, 2)?;
-    //     println!("c:{:?}", c);
-    //     Ok(())
-    // }
-
-    // #[test]
-    // fn test_chunk() -> GResult<()> {
-    //     let a = Tensor::mat_slice(&[
-    //         [0.0, 1.0, 2.0, 3.0],
-    //         [4.0, 5.0, 6.0, 7.0],
-    //         [8.0, 9.0, 10.0, 11.0],
-    //         [12.0, 13.0, 14.0, 15.0],
-    //     ]);
-    //     let b = a.chunk(4, 0)?;
-    //     for i in b {
-    //         println!("b:{:?}", i);
-    //     }
-
-    //     let c = a.chunk(4, 1)?;
-    //     for i in c {
-    //         println!("c:{:?}", i);
-    //     }
-    //     Ok(())
-    // }
 
     #[test]
     fn test_clone() -> GResult<()> {

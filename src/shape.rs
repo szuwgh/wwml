@@ -1,7 +1,7 @@
-use crate::GGmlType;
-
 use super::error::{GError, GResult, ShapeErrorKind};
+use crate::GGmlType;
 use crate::GS_BLCK_SIZE;
+use serde::Deserialize;
 pub const MAX_DIM: usize = 4;
 
 pub(crate) fn zip<I, J>(i: I, j: J) -> std::iter::Zip<I::IntoIter, J::IntoIter>
@@ -34,6 +34,17 @@ pub struct Dim {
 }
 
 impl Dim {
+    pub fn from_vec(s: Vec<usize>, dtype: GGmlType) -> Dim {
+        let n_dims = s.len();
+        let shape = Shape::from_vec(s);
+        let stride = shape.ggml_stride(dtype);
+        Dim {
+            n_dims: n_dims,
+            shape: shape,
+            stride: stride,
+        }
+    }
+
     pub fn shape(&self) -> &[usize] {
         &self.shape.as_slice()[..self.n_dims]
     }
@@ -311,7 +322,7 @@ impl One for Layout {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Shape(pub(crate) Layout);
 
 impl Shape {

@@ -112,6 +112,5 @@ mod tests {
         //     .iter()
         //     .for_each(|x| if *x > 1.0 { *x = 1.0 } else { *x = 0.0 });
 
-        println!("m3:{:?}", m1);
     }
 }
