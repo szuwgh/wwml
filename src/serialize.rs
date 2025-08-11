@@ -3,17 +3,15 @@ use crate::Device;
 use crate::Dim;
 use crate::GGmlType;
 use crate::RawSlice;
-use crate::Shape;
 use crate::Storage;
+use crate::StorageProto;
 use crate::Tensor;
-use crate::MAX_DIM;
-use serde::de::DeserializeSeed;
-use serde::de::{self, Deserializer, SeqAccess, Visitor};
+use crate::TensorProto;
+use serde::de::{self, Deserializer};
 use serde::ser::{SerializeSeq, Serializer};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
-use std::fmt;
 use std::ptr::NonNull;
 
 impl<'de> Deserialize<'de> for Tensor {
@@ -97,28 +95,6 @@ impl<'de> Deserialize<'de> for Tensor {
             )));
         }
         let dim = Dim::from_vec(shapes, dtype);
-        // // 6. 计算 strides（row-major）
-        // let mut stride = [0; MAX_DIM];
-        // for i in (0..shapes.len()).rev() {
-        //     stride[i] = if i == shapes.len() - 1 {
-        //         1
-        //     } else {
-        //         stride[i + 1] * shapes[i + 1]
-        //     };
-        // }
-
-        // // 7. 构造 Dim 和 Storage
-        // let mut layout = [0; MAX_DIM];
-        // for (i, &s) in shapes.iter().enumerate() {
-        //     layout[i] = s;
-        // }
-        // let dim = Dim {
-        //     n_dims: shapes.len(),
-        //     shape: Shape(layout),
-        //     stride,
-        // };
-
-        // 8. 把 flat 转回 Vec<f32> 或 Vec<i32> 并构造 RawSlice
         let dev = Device::Cpu;
         let data = match dtype {
             GGmlType::F32 => {
@@ -172,6 +148,8 @@ impl Serialize for Tensor {
     where
         S: serde::Serializer,
     {
+        //人类可读的
+        // if serializer.is_human_readable() {
         // 1. 提取原始数据为统一格式
         let (flat_data, elem_type) = match &self.data {
             Storage::Cpu(cpu_storage) => match cpu_storage {
@@ -214,8 +192,30 @@ impl Serialize for Tensor {
 
         // 3. 递归序列化为嵌套结构
         serialize_nested(&flat_data, &self.dim.shape.0[..self.dim.n_dims], serializer)
+        // } else {
+        //     let state = TensorStorageFormat {
+        //         dtype: self.dtype.as_u8(),
+        //         shape: self.shape(),
+        //         data: self.data.as_bytes(),
+        //     };
+        //     state.serialize(serializer)
+        // }
     }
 }
+
+// struct TensorStorageFormat<'a> {
+//     dtype: u8,
+//     shape: &'a [usize],
+//     data: &'a [u8],
+// }
+
+// impl<'a> Serialize for TensorStorageFormat<'a> {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//     }
+// }
 
 #[derive(Debug, Deserialize)]
 enum TensorElement {

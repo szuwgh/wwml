@@ -13,6 +13,7 @@ pub use cuda::{
     CudaDevice, CudaStorage, CudaStorageView, CudaStorageSlice, CudaStorageSliceView,
     init_cuda_function, // 如果你还需要导出函数
 };
+use serde::Serialize;
 #[macro_use]
 pub mod macros; // 导入宏模块
 pub mod error;
@@ -266,8 +267,9 @@ pub trait StorageProto {
     fn offset<'a>(&'a self, i: usize) -> StorageView<'a>;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub enum Device {
+    #[default]
     Cpu,
     #[cfg(feature = "cuda")]
     Gpu(CudaDevice),
@@ -277,9 +279,10 @@ impl Device {
     pub fn new_cuda(ordinal: usize) {}
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[repr(usize)]
 pub enum GGmlType {
+    #[default]
     F32 = 0,
     F16 = 1,
     Q4_0 = 2,
@@ -304,6 +307,16 @@ pub enum GGmlType {
 }
 
 impl GGmlType {
+
+
+    pub fn from_u8(u:u8)-> Self {
+       Self::from_usize(u as usize)      
+    }
+
+    pub fn as_u8(&self) -> u8 {
+        *self as u8
+    }
+    
     pub fn typ_name(&self)->&str{
         match self{
             GGmlType::F32 => "F32",
@@ -1252,10 +1265,21 @@ impl<'a, P: TensorType> RawSliceView<'a, P> {
 }
 
 
+
 pub(crate) struct RawSlice<P: TensorType> {
     ptr: NonNull<P>,
     len: usize,
     cap: usize,
+}
+
+impl<P:TensorType> Default for RawSlice<P>{
+    fn default() -> Self {
+         RawSlice {
+            ptr: NonNull::dangling(),
+            len: 0,
+            cap: 0,
+        }
+    }
 }
 
 impl<P: TensorType> RawSlice<P> {
@@ -1653,6 +1677,12 @@ pub enum CpuStorageSlice {
     I32(RawSlice<i32>),
 }
 
+impl Default for CpuStorageSlice {
+    fn default() -> Self {
+        CpuStorageSlice::F32(RawSlice::default())
+    }
+}
+
 impl CpuStorageSlice {
     pub(crate) fn from_bytes(raw: &[u8], dtype: GGmlType) {}
 
@@ -1789,6 +1819,12 @@ pub enum Storage {
     Cpu(CpuStorageSlice),
     #[cfg(feature = "cuda")]
     Gpu(CudaStorage),
+}
+
+impl Default for Storage{
+    fn default() -> Self {
+        Storage::Cpu(CpuStorageSlice::default())
+    }
 }
 
 impl StorageProto for Storage {
@@ -2134,15 +2170,13 @@ impl<'a> TensorView<'a> {
 
 unsafe impl Send for Tensor {}
 
-#[derive(Clone)]    
+#[derive(Clone, Default)]    
 pub struct Tensor {
     dtype: GGmlType,
     data: Storage,
     dim: Dim,
     dev: Device,
 }
-
-
 
 impl AsRef<Tensor> for Tensor {
     fn as_ref(&self) -> &Tensor {
@@ -2151,6 +2185,7 @@ impl AsRef<Tensor> for Tensor {
 }
 
 impl Tensor {
+
     pub fn to_cpu_tensor(&self) -> GResult<Tensor> {
         match &self.data {
             Storage::Cpu(_) => todo!(),

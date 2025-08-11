@@ -26,7 +26,7 @@ pub fn compute_stride_offset(n: usize, stride: usize) -> isize {
     (n * stride) as isize
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Dim {
     pub(crate) n_dims: usize,
     pub(crate) shape: Shape,
@@ -322,7 +322,7 @@ impl One for Layout {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Default)]
 pub struct Shape(pub(crate) Layout);
 
 impl Shape {
